@@ -172,7 +172,7 @@ export default function VideoPlayer({
       clientRef.current = client;
       
       // Log DHT status
-      console.log('WebTorrent client created, DHT enabled:', client.dht !== null);
+      console.log('WebTorrent client created, DHT enabled:', (client as any).dht !== null);
 
       console.log('WebTorrent client created, adding torrent...');
 
