@@ -52,6 +52,7 @@ const nextConfig = {
         new webpack.ProvidePlugin({
           global: 'globalThis',
           Buffer: ['buffer', 'Buffer'],
+          globalThis: 'globalThis',
         })
       );
       
@@ -86,7 +87,23 @@ const nextConfig = {
           resourceRegExp: /^(fs-native-extensions|require-addon|utp-native)$/,
         })
       );
+      
+      // Provide globalThis for server-side builds
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          globalThis: require.resolve('./polyfills/globalThis.js'),
+        })
+      );
     }
+    
+    // Replace any require('globalThis') calls with our polyfill
+    config.plugins.push(
+      new webpack.NormalModuleReplacementPlugin(
+        /^globalThis$/,
+        require.resolve('./polyfills/globalThis.js')
+      )
+    );
+    
     return config;
   },
 };
