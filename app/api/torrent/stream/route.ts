@@ -191,10 +191,13 @@ export async function GET(request: NextRequest) {
       throw new Error('Failed to get or create torrent');
     }
     
+    // Type assertion: torrent is guaranteed to be non-null after the check above
+    const currentTorrent = torrent;
+    
     // Always wait for torrent to be ready and get infoHash
-    if (!torrent.ready) {
+    if (!currentTorrent.ready) {
       console.log('Server-side: Waiting for torrent to be ready...');
-      if (torrent && typeof torrent.on === 'function') {
+      if (currentTorrent && typeof currentTorrent.on === 'function') {
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error('Torrent timeout - not ready after 30 seconds'));
@@ -202,8 +205,8 @@ export async function GET(request: NextRequest) {
           
           const onReady = () => {
             clearTimeout(timeout);
-            if (torrent && typeof torrent.removeListener === 'function') {
-              torrent.removeListener('error', onError);
+            if (currentTorrent && typeof currentTorrent.removeListener === 'function') {
+              currentTorrent.removeListener('error', onError);
             }
             resolve();
           };
@@ -279,10 +282,11 @@ export async function GET(request: NextRequest) {
                 // Check if the torrent we tried to add is still in the client and valid
                 if (torrent && torrent.infoHash) {
                   // Verify it's actually in the client
-                  const verifyTorrent = (client as any).get(torrent.infoHash) || 
+                  const torrentInfoHash = torrent.infoHash;
+                  const verifyTorrent = (client as any).get(torrentInfoHash) || 
                     (client.torrents && Array.isArray(client.torrents) ? 
                       client.torrents.find((t: any) => 
-                        t && t.infoHash && t.infoHash.toLowerCase() === torrent.infoHash.toLowerCase()
+                        t && t.infoHash && t.infoHash.toLowerCase() === torrentInfoHash.toLowerCase()
                       ) : null);
                   
                   if (verifyTorrent && verifyTorrent.infoHash) {
@@ -553,20 +557,22 @@ export async function GET(request: NextRequest) {
             reject(err);
           };
           
-          torrent.on('ready', onReady);
-          torrent.on('error', onError);
+          currentTorrent.on('ready', onReady);
+          (currentTorrent as any).on('error', onError);
         });
       }
     }
     
     // Get infoHash and refresh torrent reference
-    if (torrent.infoHash) {
-      infoHash = torrent.infoHash.toLowerCase();
+    if (currentTorrent.infoHash) {
+      infoHash = currentTorrent.infoHash.toLowerCase();
       // Always get fresh reference after ready
       const freshTorrent = (client as any).get(infoHash);
       if (freshTorrent && freshTorrent.infoHash) {
         torrent = freshTorrent;
         console.log('Server-side: Using fresh torrent reference after ready');
+      } else {
+        torrent = currentTorrent;
       }
     } else {
       console.error('Server-side: Torrent ready but no infoHash available');
@@ -576,12 +582,15 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    // Ensure torrent is set - use currentTorrent if torrent is null
+    let activeTorrent: WebTorrent.Torrent = torrent || currentTorrent;
+    
     // Wait for files to be available
     // CRITICAL: Even if torrent is ready, files might not be populated yet
     // Always wait for files to be available before proceeding
-    if (!torrent.files || !Array.isArray(torrent.files) || torrent.files.length === 0) {
+    if (!activeTorrent.files || !Array.isArray(activeTorrent.files) || activeTorrent.files.length === 0) {
       console.log('Server-side: Waiting for torrent files to be populated...');
-      console.log(`Server-side: Torrent ready: ${torrent.ready}, infoHash: ${torrent.infoHash}`);
+      console.log(`Server-side: Torrent ready: ${activeTorrent.ready}, infoHash: ${activeTorrent.infoHash}`);
       
       let filesFound = false;
       const maxWait = 20000; // 20 seconds
@@ -595,6 +604,7 @@ export async function GET(request: NextRequest) {
           // Only use if it's valid and has files
           if (freshTorrent && freshTorrent.infoHash) {
             torrent = freshTorrent;
+            activeTorrent = freshTorrent;
             // Check if files are available now
             if (freshTorrent.files && Array.isArray(freshTorrent.files) && freshTorrent.files.length > 0) {
               filesFound = true;
@@ -612,6 +622,7 @@ export async function GET(request: NextRequest) {
         const freshTorrent = (client as any).get(infoHash);
         if (freshTorrent && freshTorrent.infoHash && freshTorrent.files && Array.isArray(freshTorrent.files) && freshTorrent.files.length > 0) {
           torrent = freshTorrent;
+          activeTorrent = freshTorrent;
           filesFound = true;
           console.log('Server-side: Files found on final check!');
         }
@@ -619,20 +630,20 @@ export async function GET(request: NextRequest) {
       
       if (!filesFound) {
         console.error('Server-side: Files still not available after waiting');
-        console.error(`Server-side: Torrent state - ready: ${torrent?.ready}, infoHash: ${torrent?.infoHash || 'none'}, files: ${torrent?.files ? torrent.files.length : 'undefined'}`);
+        console.error(`Server-side: Torrent state - ready: ${activeTorrent?.ready}, infoHash: ${activeTorrent?.infoHash || 'none'}, files: ${activeTorrent?.files ? activeTorrent.files.length : 'undefined'}`);
         return NextResponse.json(
           { error: 'Torrent files not available. Please try again in a moment.' },
           { status: 503 }
         );
       }
     } else {
-      console.log(`Server-side: Files already available! Count: ${torrent.files.length}`);
+      console.log(`Server-side: Files already available! Count: ${activeTorrent.files.length}`);
     }
 
     console.log('Server-side: Torrent ready, finding video file...');
     
     // Ensure torrent has files array
-    if (!torrent.files || !Array.isArray(torrent.files) || torrent.files.length === 0) {
+    if (!activeTorrent.files || !Array.isArray(activeTorrent.files) || activeTorrent.files.length === 0) {
       console.error('Server-side: Torrent has no files or files not ready yet');
       return NextResponse.json(
         { error: 'Torrent files not available yet. Please try again in a moment.' },
@@ -640,10 +651,10 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    console.log(`Server-side: Torrent has ${torrent.files.length} file(s)`);
+    console.log(`Server-side: Torrent has ${activeTorrent.files.length} file(s)`);
     
     // Find video file
-    const videoFile = torrent.files.find((file: any) => {
+    const videoFile = activeTorrent.files.find((file: any) => {
       const name = file.name.toLowerCase();
       return name.endsWith('.mp4') || 
              name.endsWith('.mkv') || 
@@ -653,7 +664,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!videoFile) {
-      console.error('Server-side: No video file found. Available files:', torrent.files.map((f: any) => f.name));
+      console.error('Server-side: No video file found. Available files:', activeTorrent.files.map((f: any) => f.name));
       return NextResponse.json(
         { error: 'No video file found in torrent' },
         { status: 404 }
