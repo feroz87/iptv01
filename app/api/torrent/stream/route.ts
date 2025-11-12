@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
     
     // Try to get existing torrent first
     if (infoHash) {
-      const existingTorrent = client.get(infoHash);
+      const existingTorrent = (client as any).get(infoHash);
       if (existingTorrent && existingTorrent.infoHash) {
         torrent = existingTorrent;
         console.log('Server-side: Found existing torrent:', infoHash);
@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
             infoHash = match[1].toLowerCase();
             // Wait a moment for torrent to be added to client
             await new Promise(resolve => setTimeout(resolve, 500));
-            const existingTorrent = client.get(infoHash);
+            const existingTorrent = (client as any).get(infoHash);
             if (existingTorrent && existingTorrent.infoHash) {
               torrent = existingTorrent;
               console.log('Server-side: Found existing torrent from duplicate error:', infoHash);
@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
                   await new Promise(resolve => setTimeout(resolve, 500));
                   
                   // Try client.get() first
-                  existingTorrent = client.get(infoHash);
+                  existingTorrent = (client as any).get(infoHash);
                   
                   // If not found, check torrents array
                   if (!existingTorrent && client.torrents && Array.isArray(client.torrents)) {
@@ -279,7 +279,7 @@ export async function GET(request: NextRequest) {
                 // Check if the torrent we tried to add is still in the client and valid
                 if (torrent && torrent.infoHash) {
                   // Verify it's actually in the client
-                  const verifyTorrent = client.get(torrent.infoHash) || 
+                  const verifyTorrent = (client as any).get(torrent.infoHash) || 
                     (client.torrents && Array.isArray(client.torrents) ? 
                       client.torrents.find((t: any) => 
                         t && t.infoHash && t.infoHash.toLowerCase() === torrent.infoHash.toLowerCase()
@@ -299,7 +299,7 @@ export async function GET(request: NextRequest) {
                 console.log('Server-side: Added torrent not found, doing final check for existing torrent...');
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                const finalCheck = client.get(infoHash) || 
+                const finalCheck = (client as any).get(infoHash) || 
                   (client.torrents && Array.isArray(client.torrents) ? 
                     client.torrents.find((t: any) => 
                       t && t.infoHash && 
@@ -350,7 +350,7 @@ export async function GET(request: NextRequest) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
                 // Check one more time if torrent exists
-                const preRetryCheck = client.get(infoHash) || 
+                const preRetryCheck = (client as any).get(infoHash) || 
                   (client.torrents && Array.isArray(client.torrents) ? 
                     client.torrents.find((t: any) => 
                       t && t.infoHash && 
@@ -414,7 +414,7 @@ export async function GET(request: NextRequest) {
                         const dupInfoHash = match[1].toLowerCase();
                         console.log('Server-side: Retry got duplicate error, finding existing torrent:', dupInfoHash);
                         await new Promise(resolve => setTimeout(resolve, 500));
-                        const dupTorrent = client.get(dupInfoHash) ||
+                        const dupTorrent = (client as any).get(dupInfoHash) ||
                           (client.torrents && Array.isArray(client.torrents) ?
                             client.torrents.find((t: any) =>
                               t && t.infoHash &&
@@ -461,7 +461,7 @@ export async function GET(request: NextRequest) {
                         const match = retryErr.message.match(/([a-f0-9]{40})/i);
                         if (match) {
                           const dupInfoHash = match[1].toLowerCase();
-                          const dupTorrent = client.get(dupInfoHash);
+                          const dupTorrent = (client as any).get(dupInfoHash);
                           if (dupTorrent && dupTorrent.infoHash) {
                             torrent = dupTorrent;
                             if (dupTorrent.ready) {
@@ -509,7 +509,7 @@ export async function GET(request: NextRequest) {
                     if (match) {
                       const dupInfoHash = match[1].toLowerCase();
                       await new Promise(resolve => setTimeout(resolve, 500));
-                      const dupTorrent = client.get(dupInfoHash) ||
+                      const dupTorrent = (client as any).get(dupInfoHash) ||
                         (client.torrents && Array.isArray(client.torrents) ?
                           client.torrents.find((t: any) =>
                             t && t.infoHash &&
@@ -563,7 +563,7 @@ export async function GET(request: NextRequest) {
     if (torrent.infoHash) {
       infoHash = torrent.infoHash.toLowerCase();
       // Always get fresh reference after ready
-      const freshTorrent = client.get(infoHash);
+      const freshTorrent = (client as any).get(infoHash);
       if (freshTorrent && freshTorrent.infoHash) {
         torrent = freshTorrent;
         console.log('Server-side: Using fresh torrent reference after ready');
@@ -591,7 +591,7 @@ export async function GET(request: NextRequest) {
       while (!filesFound && (Date.now() - startTime) < maxWait) {
         // Always get fresh reference from client to avoid stale objects
         if (infoHash) {
-          const freshTorrent = client.get(infoHash);
+          const freshTorrent = (client as any).get(infoHash);
           // Only use if it's valid and has files
           if (freshTorrent && freshTorrent.infoHash) {
             torrent = freshTorrent;
@@ -609,7 +609,7 @@ export async function GET(request: NextRequest) {
       
       // Final check with fresh reference
       if (!filesFound && infoHash) {
-        const freshTorrent = client.get(infoHash);
+        const freshTorrent = (client as any).get(infoHash);
         if (freshTorrent && freshTorrent.infoHash && freshTorrent.files && Array.isArray(freshTorrent.files) && freshTorrent.files.length > 0) {
           torrent = freshTorrent;
           filesFound = true;
