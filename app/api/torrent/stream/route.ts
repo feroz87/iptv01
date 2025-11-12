@@ -38,7 +38,6 @@ function cleanupTorrent(infoHash: string, client: WebTorrent.Instance) {
     
     // Fallback to client.get() if not found in array
     if (!torrent) {
-      // @ts-expect-error - WebTorrent types are incorrect, get() returns Torrent not Promise
       const getResult = (client as any).get(infoHash);
       if (getResult && typeof getResult === 'object' && 'infoHash' in getResult && !('then' in getResult)) {
         torrent = getResult as WebTorrent.Torrent;
